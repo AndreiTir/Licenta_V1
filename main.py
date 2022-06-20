@@ -12,7 +12,6 @@ from pycoral.utils.dataset import read_label_file
 from tkinter import messagebox
 sys.path.append('sort')
 from sort.sort import *
-
 if os.name == 'posix':
     import tflite_runtime.interpreter as tflite
 elif os.name == 'nt':
@@ -77,7 +76,7 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
             for i in range(len(objs)):
                 if bbox.xmin == objs[i].bbox.xmin:
                     pozi = i
-            print(len(track_bbs_ids))
+            #print(len(track_bbs_ids))
             try:
                 cv2.putText(
                     img,
@@ -118,7 +117,6 @@ class App:
         def on_closing_a():
             if messagebox.askokcancel("Quit", "Do you want to quit?"):
                 new_win.destroy()
-                cap.release()
 
         def change_pos(val):
             pass
@@ -270,7 +268,6 @@ class App:
         def on_closing_a():
             if messagebox.askokcancel("Quit", "Do you want to quit?"):
                 new_win.destroy()
-                cap.release()
 
         def callback(selection):
             print(clicked.get())
@@ -304,8 +301,6 @@ class App:
         new_win.geometry("960x720")
         new_win.configure(bg="black")
 
-        #f1 = LabelFrame(new_win, bg="black")
-        #f1.pack(pady=25)
         m1 = Label(new_win, bg="black")
         m1.pack(pady=25)
 
@@ -324,15 +319,12 @@ class App:
         cb.pack(expand=True)
 
         options = [
-
+            '-'
         ]
         clicked = StringVar()
-        #clicked.set(options[0])
         drop = OptionMenu(new_win, clicked, *options, command=callback)
         drop.configure(state='disabled')
         drop.pack(pady=30)
-        #btn1 = Button(new_win, text="increment", font=('DejavuSans', 12), command=modificare_lista)
-        #btn1.pack(pady=10)
 
         while True:
             labels = read_label_file(tflite_labels_name)
