@@ -18,11 +18,16 @@ elif os.name == 'nt':
     import tensorflow as tf
     assert tf.__version__.startswith('2')
     tf.get_logger().setLevel('ERROR')
-
-faces_tflite = 'efficientdet-lite-faces.tflite'
-faces_labels = 'labels.txt'
-persons_tflite = 'efficientdet-lite-persons.tflite'
-persons_labels = 'labels-persons.txt'
+if os.name == 'nt':
+    faces_tflite = 'efficientdet-lite-faces.tflite'
+    faces_labels = 'labels.txt'
+    persons_tflite = 'efficientdet-lite-persons.tflite'
+    persons_labels = 'labels-persons.txt'
+elif os.name == 'posix':
+    faces_tflite = 'efficientdet-lite-faces_edgetpu.tflite'
+    faces_labels = 'labels.txt'
+    persons_tflite = 'efficientdet-lite-persons_edgetpu.tflite'
+    persons_labels = 'labels-persons.txt'
 
 mot_tracker = Sort()
 
@@ -74,7 +79,8 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
             # selectare pozi
             pozi = None
             for i in range(len(objs)):
-                if bbox.xmin == objs[i].bbox.xmin:
+                if (bbox.xmin + bbox.xmax) / 2 == (objs[i].bbox.xmin + objs[i].bbox.xmax) / 2 & \
+                        (bbox.ymin + bbox.ymax) / 2 == (objs[i].bbox.ymin + objs[i].bbox.ymax) / 2:
                     pozi = i
             #print(len(track_bbs_ids))
             try:
@@ -96,7 +102,7 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
 
 class ServoPosition:
     def __init__(self):
-        # 0.015 = -90deg, 0.12 = +90deg, sau 0.04 0.12 sau 0.05 0.15
+        # 0.015 = -90deg, 0.12 = +90deg, sau 0.04 0.12
         self.curr_x = 0.   # 0deg
         self.curr_y = 0.   # 0deg
 
