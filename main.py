@@ -18,12 +18,15 @@ elif os.name == 'nt':
     import tensorflow as tf
     assert tf.__version__.startswith('2')
     tf.get_logger().setLevel('ERROR')
+
+
 if os.name == 'nt':
     faces_tflite = 'efficientdet-lite-faces.tflite'
     faces_labels = 'labels.txt'
     persons_tflite = 'efficientdet-lite-persons.tflite'
     persons_labels = 'labels-persons.txt'
 elif os.name == 'posix':
+    # nu merge cu edgetpu
     faces_tflite = 'efficientdet-lite-faces_edgetpu.tflite'
     faces_labels = 'labels.txt'
     persons_tflite = 'efficientdet-lite-persons_edgetpu.tflite'
@@ -79,8 +82,8 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
             # selectare pozi
             pozi = None
             for i in range(len(objs)):
-                if (bbox.xmin + bbox.xmax) / 2 == (objs[i].bbox.xmin + objs[i].bbox.xmax) / 2 & \
-                        (bbox.ymin + bbox.ymax) / 2 == (objs[i].bbox.ymin + objs[i].bbox.ymax) / 2:
+                if ((bbox.xmin + bbox.xmax) / 2 == (objs[i].bbox.xmin + objs[i].bbox.xmax) / 2) and \
+                        ((bbox.ymin + bbox.ymax) / 2 == (objs[i].bbox.ymin + objs[i].bbox.ymax) / 2):
                     pozi = i
             #print(len(track_bbs_ids))
             try:
@@ -102,7 +105,7 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
 
 class ServoPosition:
     def __init__(self):
-        # 0.015 = -90deg, 0.12 = +90deg, sau 0.04 0.12
+        # 0.015 = 0deg, 0.114 = +180deg, cu pas de 0.002
         self.curr_x = 0.   # 0deg
         self.curr_y = 0.   # 0deg
 
@@ -133,7 +136,7 @@ class App:
             valx = px * delta_x + dx * differential_x + ix * integral_x
             valy = py * delta_y + dy * differential_y + iy * integral_y
 
-            valx = round(valx, 2)  # round off to 2 decimel points.
+            valx = round(valx, 2)  # round off to 2 decimal points.
             valy = round(valy, 2)
             """
             if abs(delta_x) < 20:
@@ -191,7 +194,8 @@ class App:
                 tflite_model_name = faces_tflite
             labels = read_label_file(tflite_labels_name)
             if os.name == 'posix':
-                interpreter = tflite.Interpreter(tflite_model_name)
+                interpreter = tflite.Interpreter(tflite_model_name,
+                                                 experimental_delegates=[tflite.load_delegate('libedgetpu.so.1')])
             elif os.name == 'nt':
                 interpreter = tf.lite.Interpreter(tflite_model_name)
             interpreter.allocate_tensors()
@@ -219,7 +223,8 @@ class App:
         while True:
             labels = read_label_file(tflite_labels_name)
             if os.name == 'posix':
-                interpreter = tflite.Interpreter(tflite_model_name)
+                interpreter = tflite.Interpreter(tflite_model_name,
+                                                 experimental_delegates=[tflite.load_delegate('libedgetpu.so.1')])
             elif os.name == 'nt':
                 interpreter = tf.lite.Interpreter(tflite_model_name)
             interpreter.allocate_tensors()
@@ -271,6 +276,16 @@ class App:
         global tflite_labels_name, tflite_model_name
         tracking = 0
 
+        tflite_labels_name = persons_labels
+        tflite_model_name = persons_tflite
+        labels = read_label_file(tflite_labels_name)
+        if os.name == 'posix':
+            interpreter = tflite.Interpreter(tflite_model_name,
+                                             experimental_delegates=[tflite.load_delegate('libedgetpu.so.1')])
+        elif os.name == 'nt':
+            interpreter = tf.lite.Interpreter(tflite_model_name)
+        interpreter.allocate_tensors()
+
         def on_closing_a():
             if messagebox.askokcancel("Quit", "Do you want to quit?"):
                 new_win.destroy()
@@ -288,6 +303,7 @@ class App:
                 tracking = 0
 
         def update_option_menu():
+            global options
             menu = drop["menu"]
             menu.delete(0, "end")
             for string in options:
@@ -300,6 +316,7 @@ class App:
             for j in tracking:
                 a.append(str(j[4]))
             options = a
+            print(options)
             update_option_menu()
 
         new_win = Toplevel(self.parent)
@@ -333,13 +350,6 @@ class App:
         drop.pack(pady=30)
 
         while True:
-            labels = read_label_file(tflite_labels_name)
-            if os.name == 'posix':
-                interpreter = tflite.Interpreter(tflite_model_name)
-            elif os.name == 'nt':
-                interpreter = tf.lite.Interpreter(tflite_model_name)
-            interpreter.allocate_tensors()
-
             display_width = 640
             try:
                 img = cap.read()[1]
