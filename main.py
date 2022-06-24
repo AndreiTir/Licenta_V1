@@ -36,6 +36,8 @@ mot_tracker = Sort()
 
 tflite_model_name = persons_tflite
 tflite_labels_name = persons_labels
+main_x = 320.5
+main_y = 240.5
 
 if os.name == 'posix':
     from periphery import PWM
@@ -48,13 +50,11 @@ if os.name == 'posix':
 def on_closing():
     if messagebox.askokcancel("Quit", "Do you want to quit?"):
         root.destroy()
-        cap.release()
+        #cap.release()
 
 
 def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
     """
-    @made by Tir
-
     Deseneaza chenarele in jurul obiectelor si afiseaza probabilitatea si id-ul.
 
     Parameters
@@ -70,7 +70,13 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
     track_bbs_ids: list
         lista de id-uri si pozitia corespunzatoare
     """
-
+    dict = {}
+    id_uri = [a[4] for a in track_bbs_ids]
+    for j in track_bbs_ids:
+        box_uri = [o.bbox for o in objs]
+        for k in box_uri:
+            if j[0] == k.xmin and j[1] == k.ymin and j[2] == k.xmax and j[3] == k.ymax:
+                dict[box_uri.index(k)] = j[4]
     color = (0, 255, 0)
     for obj in objs:
         bbox = obj.bbox
@@ -85,7 +91,9 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
                 if ((bbox.xmin + bbox.xmax) / 2 == (objs[i].bbox.xmin + objs[i].bbox.xmax) / 2) and \
                         ((bbox.ymin + bbox.ymax) / 2 == (objs[i].bbox.ymin + objs[i].bbox.ymax) / 2):
                     pozi = i
-            #print(len(track_bbs_ids))
+            #print(id_uri, dict)
+            #pozi2 = id_uri.index(dict[objs.index(obj)])
+            #print(pozi, pozi2)
             try:
                 cv2.putText(
                     img,
@@ -110,35 +118,39 @@ class ServoPosition:
         self.curr_y = 0.   # 0deg
 
 
-class App:
-    def __init__(self, parent):
-        self.parent = parent
-        self.label = Label(self.parent, text="In ce context va fi utilizat algoritmul?", font=('DejavuSans', 12))
-        self.label.pack(pady=20)
-        self.button1 = Button(self.parent, text='Interior', font=('DejavuSans', 12), command=self.new_win_1)
-        self.button1.pack(pady=20)
-        self.button2 = Button(self.parent, text='Exterior', font=('DejavuSans', 12), command=self.new_win_2)
-        self.button2.pack(pady=20)
+servo = ServoPosition()
 
-    def new_win_1(self):
-        global tflite_labels_name, tflite_model_name
 
-        def on_closing_a():
-            if messagebox.askokcancel("Quit", "Do you want to quit?"):
-                new_win.destroy()
+def get_target(track_bbs_ids, id=0):
+    global main_x, main_y
+    center_x = 320.5
+    center_y = 240.5
+    delta_x = 0
+    delta_y = 0
+    #print("Really", end=' ')
+    try:
+        main_x = (track_bbs_ids[id][0] + track_bbs_ids[id][2]) / 2
+        main_y = (track_bbs_ids[id][1] + track_bbs_ids[id][3]) / 2
+        delta_x = round(center_x - main_x, 2)
+        delta_y = round(center_y - main_y, 2)
+        print(delta_x, delta_y)
+        return delta_x, delta_y
+    except IndexError:
+        pass
 
-        def change_pos(val):
-            pass
 
-        def tracking_servo():
-            global main_x, main_y, integral_x, integral_y, differential_x, differential_y
-            global prev_x, prev_y, track_bbs_ids, delta_x, delta_y, px, ix, dx, py, iy, dy
-            valx = px * delta_x + dx * differential_x + ix * integral_x
-            valy = py * delta_y + dy * differential_y + iy * integral_y
+    def change_pos(val):
+        pass
 
-            valx = round(valx, 2)  # round off to 2 decimal points.
-            valy = round(valy, 2)
-            """
+    def tracking_servo():
+        global main_x, main_y, integral_x, integral_y, differential_x, differential_y
+        global prev_x, prev_y, track_bbs_ids, delta_x, delta_y, px, ix, dx, py, iy, dy
+        valx = px * delta_x + dx * differential_x + ix * integral_x
+        valy = py * delta_y + dy * differential_y + iy * integral_y
+
+        valx = round(valx, 2)  # round off to 2 decimal points.
+        valy = round(valy, 2)
+        """
             if abs(delta_x) < 20:
                 ser.setdcx(0)
             else:
@@ -155,34 +167,25 @@ class App:
                     valy = 0.5 * sign
                 ser.setposy(valy)"""
 
-        def get_target(track_bbs_ids):
-            px, ix, dx = -1 / 160, 0, 0
-            py, iy, dy = -0.2 / 120, 0, 0
-            center_x = 320.5
-            center_y = 240.5
-            delta_x = 0
-            delta_y = 0
-            integral_x = 0
-            integral_y = 0
-            differential_x = 0
-            differential_y = 0
-            prev_x = 0
-            prev_y = 0
 
-            try:
-                main_x = (track_bbs_ids[0][0] + track_bbs_ids[0][2]) / 2
-                main_y = (track_bbs_ids[0][1] + track_bbs_ids[0][3]) / 2
-                delta_x = center_x - main_x
-                delta_y = center_y - main_y
-                integral_x = integral_x + delta_x
-                integral_y = integral_y + delta_y
-                differential_x = prev_x - delta_x
-                differential_y = prev_y - delta_y
-                prev_x = delta_x
-                prev_y = delta_y
-                #print(main_x, main_y)
-            except IndexError:
-                pass
+class App:
+    def __init__(self, parent):
+        self.parent = parent
+        self.label = Label(self.parent, text="In ce context va fi utilizat algoritmul?", font=('DejavuSans', 12))
+        self.label.pack(pady=20)
+        self.button1 = Button(self.parent, text='Interior', font=('DejavuSans', 12), command=self.new_win_1)
+        self.button1.pack(pady=20)
+        self.button2 = Button(self.parent, text='Exterior', font=('DejavuSans', 12), command=self.new_win_2)
+        self.button2.pack(pady=20)
+
+    def new_win_1(self):
+        global tflite_labels_name, tflite_model_name
+        cap = cv2.VideoCapture(0)
+
+        def on_closing_a():
+            if messagebox.askokcancel("Quit", "Do you want to quit?"):
+                cap.release()
+                new_win.destroy()
 
         def change_model():
             global tflite_labels_name, tflite_model_name, labels, interpreter
@@ -206,7 +209,7 @@ class App:
 
         new_win = Toplevel(self.parent)
         new_win.title("Interior")
-        new_win.geometry("960x720")
+        new_win.geometry("900x720")
         new_win.configure(bg="black")
         #f1 = LabelFrame(new_win, bg="black")
         #f1.pack(pady=50)
@@ -238,7 +241,7 @@ class App:
                 _, scale = common.set_resized_input(
                     interpreter, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
                 interpreter.invoke()
-                objs = detect.get_objects(interpreter, score_threshold=0.4, image_scale=scale)
+                objs = detect.get_objects(interpreter, score_threshold=0.55, image_scale=scale)
 
                 boxes = []
                 centers = []
@@ -273,9 +276,9 @@ class App:
                 break
 
     def new_win_2(self):
-        global tflite_labels_name, tflite_model_name
+        global tflite_labels_name, tflite_model_name, persons_tflite, persons_labels
         tracking = 0
-
+        cap = cv2.VideoCapture(0)
         tflite_labels_name = persons_labels
         tflite_model_name = persons_tflite
         labels = read_label_file(tflite_labels_name)
@@ -288,10 +291,12 @@ class App:
 
         def on_closing_a():
             if messagebox.askokcancel("Quit", "Do you want to quit?"):
+                cap.release()
                 new_win.destroy()
 
         def callback(selection):
-            print(clicked.get())
+            #print(clicked.get())
+            pass
 
         def change_state():
             if check_var.get() == 1:
@@ -309,19 +314,21 @@ class App:
             for string in options:
                 menu.add_command(label=string,
                                  command=lambda value=string: clicked.set(value))
+            if len(options) == 1 or clicked.get() not in options:
+                clicked.set(options[0])
 
         def modificare_lista(tracking):
             global options
-            a = []
+            a = ['-']
             for j in tracking:
-                a.append(str(j[4]))
+                a.append(str(int(j[4])))
             options = a
             print(options)
             update_option_menu()
 
         new_win = Toplevel(self.parent)
         new_win.title("Exterior")
-        new_win.geometry("960x720")
+        new_win.geometry("900x720")
         new_win.configure(bg="black")
 
         m1 = Label(new_win, bg="black")
@@ -341,16 +348,14 @@ class App:
         )
         cb.pack(expand=True)
 
-        options = [
-            '-'
-        ]
+        options = ['-']
         clicked = StringVar()
         drop = OptionMenu(new_win, clicked, *options, command=callback)
         drop.configure(state='disabled')
         drop.pack(pady=30)
+        display_width = 640
 
         while True:
-            display_width = 640
             try:
                 img = cap.read()[1]
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -359,7 +364,7 @@ class App:
                 _, scale = common.set_resized_input(
                     interpreter, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
                 interpreter.invoke()
-                objs = detect.get_objects(interpreter, score_threshold=0.4, image_scale=scale)
+                objs = detect.get_objects(interpreter, score_threshold=0.55, image_scale=scale)
 
                 boxes = []
                 centers = []
@@ -368,7 +373,12 @@ class App:
                     centers.append([(obj.bbox.xmin + obj.bbox.xmax) / 2, (obj.bbox.ymin + obj.bbox.ymax) / 2])
                 if objs:
                     track_bbs_ids = mot_tracker.update(np.array(boxes))
-                    #get_target(track_bbs_ids)
+                    if tracking == 1 and clicked.get() != '-':
+                        id_uri = [int(tra[4]) for tra in track_bbs_ids]
+                        id_urmarit = id_uri.index(int(clicked.get()))
+                        get_target(track_bbs_ids, id_urmarit)
+                    elif tracking == 0:
+                        get_target(track_bbs_ids)
 
                 scale_factor = display_width / img.width
                 height_ratio = img.height / img.width
@@ -390,12 +400,12 @@ class App:
 
 
 if __name__ == "__main__":
-    cap = cv2.VideoCapture(0)
+    #cap = cv2.VideoCapture(0)
     root = Tk()
     root.geometry('380x240')
-    root.title("Alegerea contextului")
+    root.title("Alegerea contextului de functionare")
     App(root)
     root.protocol("WM_DELETE_WINDOW", on_closing)
     root.bind('<Escape>', lambda e: root.destroy())
     root.mainloop()
-    cap.release()
+    #cap.release()
