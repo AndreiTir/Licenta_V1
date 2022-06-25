@@ -18,15 +18,12 @@ elif os.name == 'nt':
     import tensorflow as tf
     assert tf.__version__.startswith('2')
     tf.get_logger().setLevel('ERROR')
-
-
 if os.name == 'nt':
     faces_tflite = 'efficientdet-lite-faces.tflite'
     faces_labels = 'labels.txt'
     persons_tflite = 'efficientdet-lite-persons.tflite'
     persons_labels = 'labels-persons.txt'
 elif os.name == 'posix':
-    # nu merge cu edgetpu
     faces_tflite = 'efficientdet-lite-faces_edgetpu.tflite'
     faces_labels = 'labels.txt'
     persons_tflite = 'efficientdet-lite-persons_edgetpu.tflite'
@@ -36,20 +33,18 @@ mot_tracker = Sort()
 
 tflite_model_name = persons_tflite
 tflite_labels_name = persons_labels
-main_x = 320.5
-main_y = 240.5
 
 if os.name == 'posix':
     import board
     import pwmio
     from adafruit_motor import servo
+
     pwm_pan_x = pwmio.PWMOut(board.PWM1, duty_cycle=0, frequency=50)
     pwm_tilt_y = pwmio.PWMOut(board.PWM2, duty_cycle=0, frequency=50)
     pwm_pan = servo.Servo(pwm_pan_x)
     pwm_tilt = servo.Servo(pwm_tilt_y)
     pwm_pan.angle = 90
     pwm_tilt.angle = 90
-
 
     def move_servo(servo, delta, max, angles):
         error = abs(delta)
@@ -67,13 +62,12 @@ if os.name == 'posix':
 def on_closing():
     if messagebox.askokcancel("Quit", "Do you want to quit?"):
         root.destroy()
-        #cap.release()
+        cap.release()
 
 
 def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
     """
     Deseneaza chenarele in jurul obiectelor si afiseaza probabilitatea si id-ul.
-
     Parameters
     -------
     img: numpy.ndarray
@@ -87,15 +81,7 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
     track_bbs_ids: list
         lista de id-uri si pozitia corespunzatoare
     """
-    """
-    dict = {}
-    id_uri = [a[4] for a in track_bbs_ids]
-    for j in track_bbs_ids:
-        box_uri = [o.bbox for o in objs]
-        for k in box_uri:
-            if j[0] == k.xmin and j[1] == k.ymin and j[2] == k.xmax and j[3] == k.ymax:
-                dict[box_uri.index(k)] = j[4]
-    """
+
     color = (0, 255, 0)
     for obj in objs:
         bbox = obj.bbox
@@ -107,12 +93,10 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
             # selectare pozi
             pozi = None
             for i in range(len(objs)):
-                if ((bbox.xmin + bbox.xmax) / 2 == (objs[i].bbox.xmin + objs[i].bbox.xmax) / 2) and \
-                        ((bbox.ymin + bbox.ymax) / 2 == (objs[i].bbox.ymin + objs[i].bbox.ymax) / 2):
+                if (bbox.xmin + bbox.xmax) / 2 == (objs[i].bbox.xmin + objs[i].bbox.xmax) / 2 & \
+                        (bbox.ymin + bbox.ymax) / 2 == (objs[i].bbox.ymin + objs[i].bbox.ymax) / 2:
                     pozi = i
-            #print(id_uri, dict)
-            #pozi2 = id_uri.index(dict[objs.index(obj)])
-            #print(pozi, pozi2)
+            #print(len(track_bbs_ids))
             try:
                 cv2.putText(
                     img,
@@ -130,23 +114,6 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
                 pass
 
 
-def get_target(track_bbs_ids, id=0):
-    global main_x, main_y
-    center_x = 320.5
-    center_y = 240.5
-    delta_x = 0
-    delta_y = 0
-    try:
-        main_x = (track_bbs_ids[id][0] + track_bbs_ids[id][2]) / 2
-        main_y = (track_bbs_ids[id][1] + track_bbs_ids[id][3]) / 2
-        delta_x = round(center_x - main_x, 2)
-        delta_y = round(center_y - main_y, 2)
-        #print(delta_x, delta_y)
-        return delta_x, delta_y
-    except IndexError:
-        pass
-
-
 class App:
     def __init__(self, parent):
         self.parent = parent
@@ -159,12 +126,26 @@ class App:
 
     def new_win_1(self):
         global tflite_labels_name, tflite_model_name
-        cap = cv2.VideoCapture(0)
 
         def on_closing_a():
             if messagebox.askokcancel("Quit", "Do you want to quit?"):
-                cap.release()
                 new_win.destroy()
+
+        def get_target(track_bbs_ids, id=0):
+            global main_x, main_y
+            center_x = 320.5
+            center_y = 240.5
+            delta_x = 0
+            delta_y = 0
+            try:
+                main_x = (track_bbs_ids[id][0] + track_bbs_ids[id][2]) / 2
+                main_y = (track_bbs_ids[id][1] + track_bbs_ids[id][3]) / 2
+                delta_x = round(center_x - main_x, 2)
+                delta_y = round(center_y - main_y, 2)
+                # print(delta_x, delta_y)
+                return delta_x, delta_y
+            except IndexError:
+                pass
 
         def change_model():
             global tflite_labels_name, tflite_model_name, labels, interpreter
@@ -188,13 +169,12 @@ class App:
 
         new_win = Toplevel(self.parent)
         new_win.title("Interior")
-        new_win.geometry("750x640")
+        new_win.geometry("750x600")
         new_win.configure(bg="black")
-        new_win.protocol("WM_DELETE_WINDOW", on_closing_a)
         #f1 = LabelFrame(new_win, bg="black")
         #f1.pack(pady=50)
         m1 = Label(new_win, bg="black")
-        m1.pack(pady=20)
+        m1.pack(pady=25)
         options = [
             "Person detection",
             "Face detection"
@@ -248,19 +228,16 @@ class App:
                 try:
                     m1['image'] = img
                 except:
-                    pass
-                new_win.update()
-            except:
-                pass
-            try:
+                    break
+
+                new_win.protocol("WM_DELETE_WINDOW", on_closing_a)
                 new_win.update()
             except:
                 break
 
     def new_win_2(self):
-        global tflite_labels_name, tflite_model_name, persons_tflite, persons_labels
+        global tflite_labels_name, tflite_model_name
         tracking = 0
-        cap = cv2.VideoCapture(0)
         tflite_labels_name = persons_labels
         tflite_model_name = persons_tflite
         labels = read_label_file(tflite_labels_name)
@@ -271,9 +248,24 @@ class App:
             interpreter = tf.lite.Interpreter(tflite_model_name)
         interpreter.allocate_tensors()
 
+        def get_target(track_bbs_ids, id=0):
+            global main_x, main_y
+            center_x = 320.5
+            center_y = 240.5
+            delta_x = 0
+            delta_y = 0
+            try:
+                main_x = (track_bbs_ids[id][0] + track_bbs_ids[id][2]) / 2
+                main_y = (track_bbs_ids[id][1] + track_bbs_ids[id][3]) / 2
+                delta_x = round(center_x - main_x, 2)
+                delta_y = round(center_y - main_y, 2)
+                # print(delta_x, delta_y)
+                return delta_x, delta_y
+            except IndexError:
+                pass
+
         def on_closing_a():
             if messagebox.askokcancel("Quit", "Do you want to quit?"):
-                cap.release()
                 new_win.destroy()
 
         def callback(selection):
@@ -290,14 +282,13 @@ class App:
                 tracking = 0
 
         def update_option_menu():
-            global options
             menu = drop["menu"]
             menu.delete(0, "end")
             for string in options:
                 menu.add_command(label=string,
                                  command=lambda value=string: clicked.set(value))
-            if len(options) == 1 or clicked.get() not in options:
-                clicked.set(options[0])
+                if len(options) == 1 or clicked.get() not in options:
+                    clicked.set(options[0])
 
         def modificare_lista(tracking):
             global options
@@ -309,9 +300,9 @@ class App:
 
         new_win = Toplevel(self.parent)
         new_win.title("Exterior")
-        new_win.geometry("900x720")
+        new_win.geometry("750x680")
         new_win.configure(bg="black")
-        new_win.protocol("WM_DELETE_WINDOW", on_closing_a)
+
         m1 = Label(new_win, bg="black")
         m1.pack(pady=15)
 
@@ -329,13 +320,14 @@ class App:
         )
         cb.pack(expand=True)
 
-        options = ['-']
+        options = [
+            '-'
+        ]
         clicked = StringVar()
         drop = OptionMenu(new_win, clicked, *options, command=callback)
         drop.configure(state='disabled')
-        drop.pack(pady=30)
+        drop.pack(pady=15)
         display_width = 640
-
         while True:
             try:
                 img = cap.read()[1]
@@ -345,8 +337,8 @@ class App:
                 _, scale = common.set_resized_input(
                     interpreter, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
                 interpreter.invoke()
-                objs = detect.get_objects(interpreter, score_threshold=0.55, image_scale=scale)
-                print("afisare")
+                objs = detect.get_objects(interpreter, score_threshold=0.4, image_scale=scale)
+
                 boxes = []
                 centers = []
                 for obj in objs:
@@ -377,24 +369,19 @@ class App:
                     m1['image'] = img
                 except:
                     pass
-
-                new_win.update()
-            except:
-                pass
-            try:
-                new_win.update()
             except:
                 break
-
+            new_win.protocol("WM_DELETE_WINDOW", on_closing_a)
+            new_win.update()
 
 
 if __name__ == "__main__":
-    #cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0)
     root = Tk()
     root.geometry('380x240')
-    root.title("Alegerea contextului de functionare")
+    root.title("Alegerea contextului")
     App(root)
     root.protocol("WM_DELETE_WINDOW", on_closing)
     root.bind('<Escape>', lambda e: root.destroy())
     root.mainloop()
-    #cap.release()
+    cap.release()
