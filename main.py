@@ -5,6 +5,7 @@ import os
 import cv2
 import sys
 import numpy as np
+import time
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 from pycoral.adapters import common
 from pycoral.adapters import detect
@@ -51,9 +52,9 @@ if os.name == 'posix':
     pwm_tilt.angle = 90
 
 
-    def move_servo(servo, delta, max, angles):
+    def move_servo(servo, delta, max, angles, sens):
         error = abs(delta)
-        sign = error / delta
+        sign = sens * error / delta
         if error <= 20:
             pass
         elif 20 < error <= (max + 20) / 3 and angles[0] < servo.angle + 3 < angles[1]:
@@ -70,7 +71,7 @@ def on_closing():
         #cap.release()
 
 
-def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
+def draw_box(img, objs, scale_factor, labels, track_bbs_ids, fps):
     """
     Deseneaza chenarele in jurul obiectelor si afiseaza probabilitatea si id-ul.
 
@@ -96,7 +97,10 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
             if j[0] == k.xmin and j[1] == k.ymin and j[2] == k.xmax and j[3] == k.ymax:
                 dict[box_uri.index(k)] = j[4]
     """
+    fps_text = "FPS: {:.2f}".format(fps)
     color = (0, 255, 0)
+    cv2.putText(img, fps_text, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
     for obj in objs:
         bbox = obj.bbox
         start_point = (int(bbox.xmin * scale_factor), int(bbox.ymin * scale_factor))
@@ -160,6 +164,9 @@ class App:
     def new_win_1(self):
         global tflite_labels_name, tflite_model_name
         cap = cv2.VideoCapture(0)
+        if os.name == 'posix':
+            pwm_pan.angle = 90
+            pwm_tilt.angle = 90
 
         def on_closing_a():
             if messagebox.askokcancel("Quit", "Do you want to quit?"):
@@ -203,6 +210,8 @@ class App:
         clicked.set(options[0])
         drop = OptionMenu(new_win, clicked, *options, command=callback)
         drop.pack(pady=20)
+        fps_start_time = 0
+        fps = 0
         while True:
             labels = read_label_file(tflite_labels_name)
             if os.name == 'posix':
@@ -222,7 +231,10 @@ class App:
                     interpreter, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
                 interpreter.invoke()
                 objs = detect.get_objects(interpreter, score_threshold=0.55, image_scale=scale)
-
+                fps_end_time = time.time()
+                time_diff = fps_end_time - fps_start_time
+                fps = 1 / time_diff
+                fps_start_time = fps_end_time
                 boxes = []
                 centers = []
                 for obj in objs:
@@ -232,8 +244,8 @@ class App:
                     track_bbs_ids = mot_tracker.update(np.array(boxes))
                     a_x, a_y = get_target(track_bbs_ids)
                     if os.name == 'posix':
-                        move_servo(pwm_pan, a_x, 319.5, [0, 180])
-                        move_servo(pwm_tilt, a_y, 239.5, [30, 135])
+                        move_servo(pwm_pan, a_x, 319.5, [0, 180], 1)
+                        move_servo(pwm_tilt, a_y, 239.5, [30, 135], -1)
 
                 scale_factor = display_width / img.width
                 height_ratio = img.height / img.width
@@ -241,7 +253,7 @@ class App:
 
                 img = np.asarray(img)
                 if objs:
-                    draw_box(img, objs, scale_factor, labels, track_bbs_ids)
+                    draw_box(img, objs, scale_factor, labels, track_bbs_ids, fps)
 
                 img = ImageTk.PhotoImage(Image.fromarray(img))
 
@@ -261,6 +273,9 @@ class App:
         global tflite_labels_name, tflite_model_name, persons_tflite, persons_labels
         tracking = 0
         cap = cv2.VideoCapture(0)
+        if os.name == 'posix':
+            pwm_pan.angle = 90
+            pwm_tilt.angle = 90
         tflite_labels_name = persons_labels
         tflite_model_name = persons_tflite
         labels = read_label_file(tflite_labels_name)
@@ -335,7 +350,8 @@ class App:
         drop.configure(state='disabled')
         drop.pack(pady=30)
         display_width = 640
-
+        fps_start_time = 0
+        fps = 0
         while True:
             try:
                 img = cap.read()[1]
@@ -346,7 +362,10 @@ class App:
                     interpreter, img.size, lambda size: img.resize(size, Image.ANTIALIAS))
                 interpreter.invoke()
                 objs = detect.get_objects(interpreter, score_threshold=0.55, image_scale=scale)
-                print("afisare")
+                fps_end_time = time.time()
+                time_diff = fps_end_time - fps_start_time
+                fps = 1 / time_diff
+                fps_start_time = fps_end_time
                 boxes = []
                 centers = []
                 for obj in objs:
@@ -361,8 +380,8 @@ class App:
                     elif tracking == 0:
                         a_x, a_y = get_target(track_bbs_ids)
                     if os.name == 'posix':
-                        move_servo(pwm_pan, a_x, 319.5, [0, 180])
-                        move_servo(pwm_tilt, a_y, 239.5, [30, 135])
+                        move_servo(pwm_pan, a_x, 319.5, [0, 180], 1)
+                        move_servo(pwm_tilt, a_y, 239.5, [30, 135], -1)
 
                 scale_factor = display_width / img.width
                 height_ratio = img.height / img.width
@@ -370,7 +389,7 @@ class App:
 
                 img = np.asarray(img)
                 if objs:
-                    draw_box(img, objs, scale_factor, labels, track_bbs_ids)
+                    draw_box(img, objs, scale_factor, labels, track_bbs_ids, fps)
                 img = ImageTk.PhotoImage(Image.fromarray(img))
                 modificare_lista(track_bbs_ids)
                 try:
