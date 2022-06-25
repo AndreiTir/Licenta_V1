@@ -45,6 +45,26 @@ if os.name == 'posix':
     pwm_y = PWM(1, 0)  # (Pin 33)
     pwm_x.frequency = 50
     pwm_y.frequency = 50
+    import board
+    import pwmio
+    from adafruit_motor import servo
+    pwm_pan = pwmio.PWMOut(board.PWM1, duty_cycle=0, frequency=50)
+    pwm_tilt = pwmio.PWMOut(board.PWM2, duty_cycle=0, frequency=50)
+    pwm_pan.angle = 90
+    pwm_tilt.angle = 90
+
+
+    def move_servo(servo, delta, max, angles):
+        error = abs(delta)
+        sign = -1 * error / delta
+        if error <= 20:
+            pass
+        elif 20 < error <= (max + 20) / 3 and angles[0] < servo.angle + 3 < angles[1]:
+            servo.angle += 3 * sign
+        elif (max + 20) / 3 < error <= max and angles[0] < servo.angle + 7 < angles[1]:
+            servo.angle += 7 * sign
+        else:
+            pass
 
 
 def on_closing():
@@ -111,61 +131,21 @@ def draw_box(img, objs, scale_factor, labels, track_bbs_ids):
                 pass
 
 
-class ServoPosition:
-    def __init__(self):
-        # 0.015 = 0deg, 0.114 = +180deg, cu pas de 0.002
-        self.curr_x = 0.   # 0deg
-        self.curr_y = 0.   # 0deg
-
-
-servo = ServoPosition()
-
-
 def get_target(track_bbs_ids, id=0):
     global main_x, main_y
     center_x = 320.5
     center_y = 240.5
     delta_x = 0
     delta_y = 0
-    #print("Really", end=' ')
     try:
         main_x = (track_bbs_ids[id][0] + track_bbs_ids[id][2]) / 2
         main_y = (track_bbs_ids[id][1] + track_bbs_ids[id][3]) / 2
         delta_x = round(center_x - main_x, 2)
         delta_y = round(center_y - main_y, 2)
-        print(delta_x, delta_y)
+        #print(delta_x, delta_y)
         return delta_x, delta_y
     except IndexError:
         pass
-
-
-    def change_pos(val):
-        pass
-
-    def tracking_servo():
-        global main_x, main_y, integral_x, integral_y, differential_x, differential_y
-        global prev_x, prev_y, track_bbs_ids, delta_x, delta_y, px, ix, dx, py, iy, dy
-        valx = px * delta_x + dx * differential_x + ix * integral_x
-        valy = py * delta_y + dy * differential_y + iy * integral_y
-
-        valx = round(valx, 2)  # round off to 2 decimal points.
-        valy = round(valy, 2)
-        """
-            if abs(delta_x) < 20:
-                ser.setdcx(0)
-            else:
-                if abs(valx) > 0.5:
-                    sign = valx / abs(valx)
-                    valx = 0.5 * sign
-                ser.setposx(valx)
-
-            if abs(delta_y) < 20:
-                ser.setdcy(0)
-            else:
-                if abs(valy) > 0.5:
-                    sign = valy / abs(valy)
-                    valy = 0.5 * sign
-                ser.setposy(valy)"""
 
 
 class App:
@@ -209,7 +189,7 @@ class App:
 
         new_win = Toplevel(self.parent)
         new_win.title("Interior")
-        new_win.geometry("900x720")
+        new_win.geometry("750x720")
         new_win.configure(bg="black")
         #f1 = LabelFrame(new_win, bg="black")
         #f1.pack(pady=50)
@@ -250,7 +230,10 @@ class App:
                     centers.append([(obj.bbox.xmin + obj.bbox.xmax)/2, (obj.bbox.ymin + obj.bbox.ymax)/2])
                 if objs:
                     track_bbs_ids = mot_tracker.update(np.array(boxes))
-                    get_target(track_bbs_ids)
+                    a_x, a_y = get_target(track_bbs_ids)
+                    if os.name == 'posix':
+                        move_servo(pwm_pan, a_x, 319.5, [0, 180])
+                        move_servo(pwm_tilt, a_y, 239.5, [30, 135])
 
                 scale_factor = display_width / img.width
                 height_ratio = img.height / img.width
@@ -376,9 +359,12 @@ class App:
                     if tracking == 1 and clicked.get() != '-':
                         id_uri = [int(tra[4]) for tra in track_bbs_ids]
                         id_urmarit = id_uri.index(int(clicked.get()))
-                        get_target(track_bbs_ids, id_urmarit)
+                        a_x, a_y = get_target(track_bbs_ids, id_urmarit)
                     elif tracking == 0:
-                        get_target(track_bbs_ids)
+                        a_x, a_y = get_target(track_bbs_ids)
+                    if os.name == 'posix':
+                        move_servo(pwm_pan, a_x, 319.5, [0, 180])
+                        move_servo(pwm_tilt, a_y, 239.5, [30, 135])
 
                 scale_factor = display_width / img.width
                 height_ratio = img.height / img.width
